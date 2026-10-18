@@ -7,8 +7,9 @@ import {
 import { 
   Question, ClassLevel, Subject, Chapter, Topic 
 } from '../types';
+import Papa from 'papaparse';
 import { 
-  PlusCircle, FileUp, Search, Filter, Trash2, Edit3, Eye, 
+  PlusCircle, FileUp, Download, Search, Filter, Trash2, Edit3, Eye, 
   Copy, AlertTriangle, X, Image as ImageIcon 
 } from 'lucide-react';
 import { LoadingState } from '../components/LoadingState';
@@ -90,6 +91,47 @@ export const AdminQuestionBankPage: React.FC = () => {
     setShowClearConfirm(false);
   };
 
+  const handleExportCSV = () => {
+    if (questions.length === 0) return;
+    const exportData = questions.map(q => {
+      const cls = classes.find(c => c.id === q.class_id);
+      const sub = subjects.find(s => s.id === q.subject_id);
+      const ch = chapters.find(c => c.id === q.chapter_id);
+      const tp = topics.find(t => t.id === q.topic_id);
+      return {
+        class: cls?.name || q.class_id,
+        subject: sub?.name || q.subject_id,
+        chapter: ch?.name || q.chapter_id,
+        topic: tp?.name || q.topic_id || '',
+        difficulty: q.difficulty,
+        source_type: q.source_type,
+        exam_name: q.exam_name || '',
+        exam_year: q.exam_year || '',
+        question: q.question_text,
+        image_url: q.image_url || '',
+        option_a: q.option_a,
+        option_b: q.option_b,
+        option_c: q.option_c,
+        option_d: q.option_d,
+        correct_answer: q.correct_answer,
+        marks: q.marks,
+        negative_marks: q.negative_marks,
+        solution: q.solution
+      };
+    });
+
+    const csv = Papa.unparse(exportData);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `cbt_questions_export_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   if (loading) return <LoadingState message="Loading Question Bank repository..." />;
 
   return (
@@ -114,6 +156,15 @@ export const AdminQuestionBankPage: React.FC = () => {
             className="inline-flex items-center gap-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold px-3.5 py-2.5 rounded-xl border border-rose-200 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
           >
             <Trash2 className="w-4 h-4" /> Clear All Questions
+          </button>
+          <button
+            type="button"
+            onClick={handleExportCSV}
+            disabled={questions.length === 0}
+            className="inline-flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold px-3.5 py-2.5 rounded-xl border border-emerald-200 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+            title="Download all questions as a CSV file"
+          >
+            <Download className="w-4 h-4" /> Export All ({questions.length})
           </button>
           <Link
             to="/admin/import"
