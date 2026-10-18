@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getAllAttempts, getRegisteredStudents, getClasses } from '../services/db';
 import { Attempt, User, ClassLevel } from '../types';
-import { FileCheck2, ArrowRight, Search, Users, Clock, Award, CheckCircle2 } from 'lucide-react';
+import { FileCheck2, ArrowRight, Search, Users, Clock, Award, CheckCircle2, RefreshCw } from 'lucide-react';
 import { LoadingState } from '../components/LoadingState';
 
 export const AdminResultsPage: React.FC = () => {
@@ -11,27 +11,32 @@ export const AdminResultsPage: React.FC = () => {
   const [students, setStudents] = useState<User[]>([]);
   const [classes, setClasses] = useState<ClassLevel[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'results' | 'students'>('results');
 
-  useEffect(() => {
-    async function loadData() {
-      setLoading(true);
-      try {
-        const [atts, stds, cls] = await Promise.all([
-          getAllAttempts(),
-          getRegisteredStudents(),
-          getClasses()
-        ]);
-        setAttempts(atts);
-        setStudents(stds);
-        setClasses(cls);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
+  const loadData = async (isManual = false) => {
+    if (isManual) setRefreshing(true);
+    else setLoading(true);
+
+    try {
+      const [atts, stds, cls] = await Promise.all([
+        getAllAttempts(),
+        getRegisteredStudents(),
+        getClasses()
+      ]);
+      setAttempts(atts);
+      setStudents(stds);
+      setClasses(cls);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
+  };
+
+  useEffect(() => {
     loadData();
   }, []);
 
@@ -66,27 +71,39 @@ export const AdminResultsPage: React.FC = () => {
           </p>
         </div>
 
-        {/* View Switcher Tabs */}
-        <div className="flex bg-slate-200 p-1 rounded-xl gap-1 self-start sm:self-auto">
+        {/* View Switcher Tabs & Refresh */}
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <div className="flex bg-slate-200 p-1 rounded-xl gap-1">
+            <button
+              type="button"
+              onClick={() => setActiveTab('results')}
+              className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                activeTab === 'results' ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <FileCheck2 className="w-4 h-4 text-blue-600" />
+              <span>Test Results ({attempts.length})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('students')}
+              className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                activeTab === 'students' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Users className="w-4 h-4 text-indigo-600" />
+              <span>Registered Students ({students.length})</span>
+            </button>
+          </div>
+
           <button
             type="button"
-            onClick={() => setActiveTab('results')}
-            className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
-              activeTab === 'results' ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-            }`}
+            onClick={() => loadData(true)}
+            disabled={refreshing}
+            className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl transition-all cursor-pointer shadow-2xs disabled:opacity-50"
+            title="Sync latest live student records from Supabase Cloud"
           >
-            <FileCheck2 className="w-4 h-4 text-blue-600" />
-            <span>Test Results ({attempts.length})</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('students')}
-            className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
-              activeTab === 'students' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <Users className="w-4 h-4 text-indigo-600" />
-            <span>Registered Students ({students.length})</span>
+            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin text-blue-600' : ''}`} />
           </button>
         </div>
       </div>

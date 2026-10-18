@@ -128,6 +128,22 @@ function setLocal<T>(key: string, data: T[]): void {
 export async function getRegisteredStudents(): Promise<User[]> {
   if (isSupabaseConfigured && supabase) {
     try {
+      // Auto-migrate: check if this device has any local students not yet in cloud
+      const localStudents = getLocal<User>(STORAGE_KEYS.STUDENTS);
+      if (localStudents && localStudents.length > 0) {
+        const payload = localStudents.map(s => ({
+          id: s.id,
+          name: s.name.trim(),
+          email: s.email.trim().toLowerCase(),
+          role: 'student',
+          class_id: s.class_id || null,
+          password: s.password?.trim() || null,
+          created_at: s.created_at || new Date().toISOString()
+        }));
+        await supabase.from('users').upsert(payload, { onConflict: 'email' });
+      }
+
+      // Fetch the single source of truth from Supabase Cloud
       const { data, error } = await supabase
         .from('users')
         .select('*')
@@ -1323,6 +1339,29 @@ export async function getStudentAttempts(studentId: string, studentEmail?: strin
 export async function getAllAttempts(): Promise<Attempt[]> {
   if (isSupabaseConfigured && supabase) {
     try {
+      // Auto-migrate: upload any local attempts not yet in cloud
+      const localAttempts = getLocal<Attempt>(STORAGE_KEYS.ATTEMPTS);
+      if (localAttempts && localAttempts.length > 0) {
+        const payload = localAttempts.map(a => ({
+          id: a.id,
+          test_id: a.test_id,
+          student_id: a.student_id,
+          student_name: a.student_name,
+          student_email: (a.student_email || '').trim().toLowerCase(),
+          started_at: a.started_at,
+          submitted_at: a.submitted_at,
+          score: a.score,
+          total_marks: a.total_marks,
+          correct_count: a.correct_count,
+          wrong_count: a.wrong_count,
+          unattempted_count: a.unattempted_count,
+          accuracy: a.accuracy,
+          time_taken_seconds: a.time_taken_seconds,
+          status: a.status
+        }));
+        await supabase.from('attempts').upsert(payload, { onConflict: 'id' });
+      }
+
       const { data, error } = await supabase
         .from('attempts')
         .select('*, tests(*)')
@@ -1345,6 +1384,7 @@ export async function getAllAttempts(): Promise<Attempt[]> {
             duration_minutes: Number(a.tests.duration_minutes) || 15
           } : undefined
         }));
+        setLocal(STORAGE_KEYS.ATTEMPTS, formatted);
         return formatted;
       }
     } catch (e) {

@@ -4,7 +4,7 @@ import { getQuestions, getAllAttempts, getRegisteredStudents } from '../services
 import { Question, Attempt, User } from '../types';
 import { 
   Users, FileSpreadsheet, FileCheck2, PlusCircle, FileUp, 
-  Layers, ChevronRight, BarChart2, ShieldAlert, ArrowRight
+  Layers, ChevronRight, BarChart2, ShieldAlert, ArrowRight, RefreshCw
 } from 'lucide-react';
 import { LoadingState } from '../components/LoadingState';
 
@@ -15,25 +15,30 @@ export const AdminDashboardPage: React.FC = () => {
   const [attempts, setAttempts] = useState<Attempt[]>([]);
   const [students, setStudents] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const loadAdminData = async (isManual = false) => {
+    if (isManual) setRefreshing(true);
+    else setLoading(true);
+
+    try {
+      const [qs, atts, stds] = await Promise.all([
+        getQuestions(),
+        getAllAttempts(),
+        getRegisteredStudents()
+      ]);
+      setQuestionsCount(qs.length);
+      setAttempts(atts);
+      setStudents(stds);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
 
   useEffect(() => {
-    async function loadAdminData() {
-      setLoading(true);
-      try {
-        const [qs, atts, stds] = await Promise.all([
-          getQuestions(),
-          getAllAttempts(),
-          getRegisteredStudents()
-        ]);
-        setQuestionsCount(qs.length);
-        setAttempts(atts);
-        setStudents(stds);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    }
     loadAdminData();
   }, []);
 
@@ -58,6 +63,16 @@ export const AdminDashboardPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => loadAdminData(true)}
+            disabled={refreshing}
+            className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white text-xs font-bold px-3.5 py-2.5 rounded-xl border border-white/20 transition-colors cursor-pointer disabled:opacity-50"
+            title="Sync latest live student & exam metrics from Supabase Cloud"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+            <span>{refreshing ? 'Syncing...' : 'Sync Cloud'}</span>
+          </button>
           <Link
             to="/admin/questions/new"
             className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-md transition-colors"
