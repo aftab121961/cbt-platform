@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { UserRole, ClassLevel } from '../types';
-import { getRegisteredStudents, getClasses } from '../services/db';
+import { getRegisteredStudents, getClasses, findStudentByEmail } from '../services/db';
 import { GraduationCap, ShieldCheck, UserCheck, Lock, Mail, User as UserIcon, BookOpen, AlertCircle } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
@@ -57,8 +57,8 @@ export const LoginPage: React.FC = () => {
           setErrorMsg('Please fill in your full name, email address, and password to register.');
           return;
         }
-        registerStudent(name, email, classId, password);
-        setSuccessMsg(`Account created successfully! Welcome, ${name}.`);
+        await registerStudent(name, email, classId, password);
+        setSuccessMsg(`Account created and synced to cloud! Welcome, ${name}.`);
         setTimeout(() => {
           navigate('/dashboard');
         }, 500);
@@ -68,10 +68,13 @@ export const LoginPage: React.FC = () => {
           return;
         }
 
-        const registeredStudents = await getRegisteredStudents();
-        const student = registeredStudents.find(
-          s => s.email.trim().toLowerCase() === email.trim().toLowerCase()
-        );
+        let student = await findStudentByEmail(email.trim());
+        if (!student) {
+          const registeredStudents = await getRegisteredStudents();
+          student = registeredStudents.find(
+            s => s.email.trim().toLowerCase() === email.trim().toLowerCase()
+          ) || null;
+        }
 
         if (!student) {
           setErrorMsg('Student not found, go to new student registration.');
@@ -83,7 +86,7 @@ export const LoginPage: React.FC = () => {
           return;
         }
 
-        loginCustom(student.email, 'student', student.name, student.class_id || classId, student.password);
+        await loginCustom(student.email, 'student', student.name, student.class_id || classId, student.password);
         navigate('/dashboard');
       }
     }

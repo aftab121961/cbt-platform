@@ -1,13 +1,13 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, UserRole } from '../types';
-import { saveRegisteredStudent, getRegisteredStudents } from '../services/db';
+import { saveRegisteredStudent, findStudentByEmail } from '../services/db';
 
 interface AuthContextType {
   user: User | null;
   role: UserRole;
   setRole: (role: UserRole) => void;
-  loginCustom: (email: string, role: UserRole, name?: string, classId?: string, password?: string) => void;
-  registerStudent: (name: string, email: string, classId: string, password?: string) => void;
+  loginCustom: (email: string, role: UserRole, name?: string, classId?: string, password?: string) => Promise<User>;
+  registerStudent: (name: string, email: string, classId: string, password?: string) => Promise<User>;
   loginAdmin: (email: string) => void;
   logout: () => void;
   selectedClassId: string;
@@ -36,7 +36,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
 
   const [selectedClassId, setSelectedClassId] = useState<string>(() => {
-    return user?.class_id || 'c11';
+    return user?.class_id || 'jee';
   });
 
   useEffect(() => {
@@ -57,7 +57,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const adminUser: User = {
       id: `admin_${Date.now()}`,
       name: email.split('@')[0].toUpperCase() === 'ADMIN' ? 'System Administrator' : email.split('@')[0],
-      email: email,
+      email: email.trim().toLowerCase(),
       role: 'admin',
       created_at: new Date().toISOString()
     };
@@ -65,37 +65,51 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem('horizon_cbt_active_user', JSON.stringify(adminUser));
   };
 
-  const loginCustom = (email: string, targetRole: UserRole, name?: string, classId: string = 'c11', password?: string) => {
-    const newUser: User = {
-      id: `user_${Date.now()}`,
-      name: name || (targetRole === 'admin' ? 'Administrator' : email.split('@')[0]),
-      email: email,
-      role: targetRole,
-      password: password,
-      class_id: targetRole === 'student' ? classId : undefined,
-      created_at: new Date().toISOString()
-    };
-    setUser(newUser);
+  const loginCustom = async (email: string, targetRole: UserRole, name?: string, classId: string = 'jee', password?: string): Promise<User> => {
+    const cleanEmail = email.trim().toLowerCase();
+    
+    // Check if user already exists in cloud/local
+    let resolvedUser: User | null = null;
     if (targetRole === 'student') {
-      setSelectedClassId(classId);
+      resolvedUser = await findStudentByEmail(cleanEmail);
+    }
+
+    const newUser: User = {
+      id: resolvedUser?.id || `user_${Date.now()}`,
+      name: name || resolvedUser?.name || (targetRole === 'admin' ? 'Administrator' : cleanEmail.split('@')[0]),
+      email: cleanEmail,
+      role: targetRole,
+      password: password || resolvedUser?.password,
+      class_id: targetRole === 'student' ? (classId || resolvedUser?.class_id || 'jee') : undefined,
+      created_at: resolvedUser?.created_at || new Date().toISOString()
+    };
+
+    setUser(newUser);
+    if (targetRole === 'student' && newUser.class_id) {
+      setSelectedClassId(newUser.class_id);
     }
     localStorage.setItem('horizon_cbt_active_user', JSON.stringify(newUser));
+    return newUser;
   };
 
-  const registerStudent = (name: string, email: string, classId: string, password?: string) => {
+  const registerStudent = async (name: string, email: string, classId: string, password?: string): Promise<User> => {
+    const cleanEmail = email.trim().toLowerCase();
     const newStudent: User = {
-      id: `student_${Date.now()}`,
+      id: `student_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       name: name.trim(),
-      email: email.trim(),
+      email: cleanEmail,
       role: 'student',
       password: password?.trim(),
       class_id: classId,
       created_at: new Date().toISOString()
     };
-    setUser(newStudent);
+
+    // Save directly to Supabase cloud and local storage
+    const savedStudent = await saveRegisteredStudent(newStudent);
+    setUser(savedStudent);
     setSelectedClassId(classId);
-    saveRegisteredStudent(newStudent);
-    localStorage.setItem('horizon_cbt_active_user', JSON.stringify(newStudent));
+    localStorage.setItem('horizon_cbt_active_user', JSON.stringify(savedStudent));
+    return savedStudent;
   };
 
   const logout = () => {
@@ -131,5 +145,3 @@ export const useAuth = () => {
   }
   return context;
 };
-
-

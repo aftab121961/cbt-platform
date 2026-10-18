@@ -1,4 +1,4 @@
-import { ClassLevel, Subject, Chapter, Topic, Question, Test, Attempt } from '../types';
+import type { ClassLevel, Subject, Chapter, Topic, Question, Test, Attempt } from '../types';
 
 export const initialClasses: ClassLevel[] = [
   { id: 'c5', name: 'Class 5', display_order: 1 },
